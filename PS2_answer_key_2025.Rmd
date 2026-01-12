@@ -1,0 +1,582 @@
+---
+title: 'GENE 760 – Problem Set 2 ANSWER KEY'
+output: 
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{'GNE760 PS2 homework template'}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The purpose of this problem set is to familiarize students with basic analysis of single-cell RNA-seq (scRNA-seq) data. You will be working with experimental data from Eze et al., Nature Neuroscience 24, 584-594 (2021). These datasets were generated using the 10X Genomics platform from prenatal human somatosensory cortex tissue samples representing three timepoints: gestational weeks (GW) 16, 18, and 20. 
+
+You will use the GW18 data to write a general workflow of single cell RNA-seq analysis. These data are stored in: */gpfs/gibbs/project/gene760/shared/folders/Data/PS2*, alongside a list of excitatory neuron markers used in Question 11.
+
+By the end of this problem set, you will have learned how to use:
+
+* **Anaconda** to handle environments and IDEs
+* **Seurat** to preprocess and analyze scRNA-seq data
+* **AUCell** to classify cell types using known marker genes
+* **EnrichR** to associate gene sets to biological function
+
+Seurat is described in Hao et al. 2021. AUCell is described in Aibar et al., 2017. EnrichR is described in Xie et al., 2021. We have placed these articles in the PS2 directory on Canvas. 
+
+A detailed description of Seurat, including examples and vignettes/tutorials, can be found here: https://satijalab.org/seurat/
+
+The basic analysis Seurat vignette using peripheral blood mono-nuclear cells (pbmc): https://satijalab.org/seurat/articles/pbmc3k_tutorial.html will be your *primary resource* for this problem set.
+
+The vignette for AUCell is available here: https://bioconductor.org/packages/release/bioc/vignettes/AUCell/inst/doc/AUCell.html.
+
+You will be using this Rmarkdown file to record your scripts as well as the output, including plots and answers. Note that the formatting of this document is intended for knitting an HTML notebook, with specific fields for questions and answers. 
+
+~~~
+Do not remove the tildes from the answer fields!
+~~~
+
+Students are to submit a gzipped tarball called <Your_NetID>_PS2.tar.gz, containing:
+
+* *\<Your_NetID\>\_PS2\_answers.Rmd*: This document with your answers and **commented** code
+* *\<Your_NetID\>\_PS2\_answers.html*: An HTML notebook knitted from this markdown file
+
+to your */gpfs/gibbs/project/gene760/shared/Dropbox/PS2* by **Sunday, February 23rd at 11:59 pm**. 
+
+***
+
+**Remove these sections before submission** 
+
+> Suggestions 
+
+* __You will knit your markdown into an .html notebook; your markdown must run uninterrupted from start to finish for this to work, so review your work carefully as you go to make sure it's consistent.__ 
+* __You can save intermediate objects (e.g., Seurat objects) as .rds files to avoid re-running lengthy pre-processing steps multiple times.__
+* __Seurat's functions often store their results within different slots of the main Seurat object without overwriting it all; you do not need multiple variable names for each pre-processing step!__
+* __Follow the Seurat vignette closely! Most of the basic code required for these questions can be found there.__
+* __The Help tab in RStudio provides information about packages, functions and parameters. Use it when in doubt!__
+
+> Examples
+
+This following code chunk is to demonstrate how the R markdown works. Chunks help compartmentalize your code. 
+
+* You can open, edit and knit this document with RStudio (or any text editor)
+* To create a code chunk, use Ctrl+Alt+i 
+* To run a chunk, use Ctrl+Shift+Enter
+* To run a single line of code, place your cursor on that line and press Ctrl+Enter. You can also run multiple highlighted lines with this command
+* You can name your chunks to easily navigate through your markdown/notebook in RStudio
+
+```{r The name of this chunk is example, warning=FALSE, message= FALSE}
+library(ggplot2)
+data(iris)
+p <- ggplot(data = iris, aes(x=Sepal.Length)) +
+    geom_histogram(aes(x = Sepal.Length, y = ..density..), alpha = 0.5, position = "identity") + 
+		geom_density(alpha=.2) +
+    theme_bw()
+p
+```
+
+***
+
+## Setup and Preprocessing
+
+> Anaconda and Seurat
+
+1. We recommend you run R and Seurat locally with RStudio, an R language Integrated Development Environment (IDE). Using Anaconda, create an R environment and install RStudio. To learn more about Anaconda, refer to https://www.anaconda.com/products/distribution. In RStudio, you will install and load the required package libraries. 
+
+* **ANS**: Install the Seurat, AUCell, and enrichR package libraries. 
+
+* _Hint:AUCell is not available through the install.packages() function and must instead be installed through BioConductor. Check the vignette for more information._
+
+```{r 1.1: Install packages, eval = FALSE}
+install.packages("Seurat")
+BiocManager::install("AUCell")
+install.packages("enrichR")
+```
+
+* **ANS**: Load these package libraries below.
+
+* _Hint: You may use this chunk to load any additional libraries you may need, or load them as you go._
+
+```{r 1.2: Load libraries}
+library(Seurat)
+library(AUCell)
+library(enrichR)
+```
+
+* **ANS**: Briefly explain why environments (and environment managers like Conda) are useful:
+~~~
+Environment managers
+1. Allow you to install software on systems where you otherwise can't
+2. Make it easy to install a program of interest by installing and loading any prerequisite packages/programs needed in the background into accessible directories. (also true of package managers more generally)
+3. Allow you to sequester cohorts of software and specific versions of software 
+4. Facilitate predictabilityby allowing creation and distribution of software environment specifications
+
+(As long as students get at least one of these these full marks seem appropriate.)
+(This is a key point: could optionally paste ones they omitted in feedback to help students learn)
+(In terms of "time spent fiddling with it" definitely one of the most important things *I* learned in 760). 
+
+~~~
+***
+
+> Loading data
+
+
+2. Cell Ranger, the 10X read alignment and gene counting software, outputs a directory. You can find a description of how Cell Ranger works on the 10X Genomics site: https://support.10xgenomics.com/single-cell-gene-expression/software/pipelines/latest/what-is-cell-ranger
+
+* **ANS**: What are the files in this CellRanger (GW18) directory? Briefly describe its contents:
+~~~
+barcodes.tsv.gz
+- barcode sequences, one per cell.
+features.tsv.gz
+- "features" : genes IDs and names
+matrix.mtx.gz
+- (Sparse) matrix of counts of gene transcripts per cell (UMIs per feature per barcode)
+~~~
+* **ANS**: Load the “GW18_somato” sample data into R and make a Seurat object with default parameters:
+
+* _Hint: after creating a Seurat object, you may remove the counts matrix object from your environment to free memory using the rm() function._
+
+```{r 2: Load data}
+# Replace this line with your code
+cell_counts <- Seurat::Read10X(data.dir = '~/Downloads/PS2/GW18_somato')
+gw18 <- CreateSeuratObject(counts = cell_counts)
+rm(cell_counts)
+```
+
+***
+
+> Quality Control and Metadata
+
+3. Quality control is a critical preliminary step in the analytical pipeline for scRNA-seq, as the presence of poor-quality cells can negatively influence your interpretation of the data. The quality metrics you will evaluate include:
+
+    _Counts_ - number of total transcripts captured per cell, sometimes termed _Unique Molecular Identifiers - *UMIs*_, or nUMI; <br>
+    _Features_ - the number of unique genes expressed by each cell, sometimes referred to as nGenes; <br>
+    _Mitochondrial content_ - the proportion of mitochondrial genes expressed; these genes are identified by a "MT-"" prefix used for text-based pattern identification (e.g., MT-CO1, MT-CYB, MT-ND1, etc.)
+
+* **ANS**: Why is mitochondrial content an indicator of cell quality? 
+~~~
+A high percentage of mitochondrial DNA may indicate 
+- cellular stress
+- apoptosis
+- Broken membranes
+- contamination
+~~~
+
+* **ANS**: Calculate the percentage of mitochondrial genes for each cell:
+
+```{r 3.1: Calculate MT percentage}
+gw18[["percent_mt"]] <- PercentageFeatureSet(gw18, pattern = "^MT-")  # extract rows with mitochondrial genes, beginning with "MT"
+```
+
+* _Hint: Some R objects contain "slots" dedicated to specific types of data within a larger data structure. These can be explored and accessed in RStudio using the "@" and "$" operators. The documentation for the Seurat object class can be found here: https://www.rdocumentation.org/packages/Seurat/versions/3.1.0/topics/seurat-class. For example, the raw counts matrix (sparse format, so 0's are .'s) in a Seurat class object can be accessed with:_
+
+```{r Example 2, eval=FALSE}
+gw18@assays$RNA$counts[1:10,1:10]
+# or
+gw18$RNA$counts[1:10,1:10]
+```
+
+* **ANS**: Where are these quality metrics stored within the Seurat object? Output the first 10 rows of that slot. Briefly explain what that slot contains:
+
+```{r 3.2: Show quality metrics}
+# Replace this line with your code
+head(gw18@meta.data, 10)
+```
+
+~~~
+Quality metrics are stored within the meta.data slot of the Seurat object which contains a dataframe with meta-information about each cell. Each row represents a cell and each column records different information about the cell. The nCount_RNA column is the count of total transcripts for that cell, the nFeature_RNA counts how many unique genes expressed are expressed by the cell, and finally as shown above, percent_mt is the mitochondrial content, calculated as the proportion of mitochondrial genes expressed.
+~~~
+
+_To determine reasonable filtering thresholds for cell quality, it is important to visualize the distribution of these metrics in your data. These figures can delineate the spectrum of normal variation, and outliers that fall outside of these ranges (i.e., poor-quality cells)._
+
+* **ANS**:  Make violin plots for mitochondrial content, number of features, and the number of transcripts for each cell, as well as a scatterplot of features against mitochondrial content. **Display all 4 plots below**:
+
+```{r 3.3: Plot quality metrics}
+plots1_3 <- VlnPlot(gw18, features = c("nFeature_RNA", "nCount_RNA", "percent_mt"), ncol = 3, pt.size=0 )  # 3 violin plots; exclude scatter points for visibility 
+plot_4 <- FeatureScatter(gw18, feature1 = "nFeature_RNA", feature2 = "percent_mt") # scatterplot of features against mitochondrial content 
+plots1_3 + plot_4  # display all 4 plots
+```
+
+* **ANS**: What is your interpretation of these quality metrics? How do you interpret the distributions of the number of detected genes and the number of transcripts? Finally, where would you roughly set cutoffs for each metric, and why?
+~~~
+I can imagine a broad range of acceptable answers for this answer. The key parts are:
+
+1. Pick cut-offs which lop off the top and bottom of nFeature_RNA and nCount_RNA
+2. Ideally some reasoning to support this : low numbers are low quality cells (possibly broken and leaking transcript or RNA degradation) high numbers are doublets.
+3. nCount_RNA >> nFeature RNA since each expressed gene has 1+ transcripts. 
+3. Pick a reasonable maximum percent MT cutoff which removes cells which have way more than average %mt
+4. From scatterplot: genes with more % mitochondrial have less detected genes : empirically showing that high %mt is an indicator of low quality.
+
+~~~
+
+_*Do not apply the filter to your object.*_
+
+> Preprocessing
+
+4. Preprocessing refers to preliminary corrections used to account for technical variation in the data prior to analysis. The following questions refer to these corrections.
+
+* **ANS**: Log normalize the library, identify the top 2500 most variable genes, and scale their expression. 
+
+```{r 4: Preprocessing}
+# log normalize
+gw18 <- NormalizeData(gw18, normalization.method = "LogNormalize", scale.factor = 10000)
+
+# find top 2500 most variable features 
+gw18 <- FindVariableFeatures(gw18, selection.method = "vst", nfeatures = 2500)
+
+# scale the expression
+gw18 <- ScaleData(gw18, features = rownames(gw18))
+
+```
+
+* **ANS**: *Why* perform log normalization? And gene expression scaling? 
+~~~
+Log normalization
+- transforms the data into a nicer (closer to normal distribution) shape for subsequent statistical tests
+- Reduces variance
+
+Scaling expression
+- Removes uninformative confounder i.e. "total RNA per cell" is generally more technical than biological
+(differences in sequencing depth, RNA degredation per cell)
+- Centering data means values are interpretable as "distance from avg expression of feature"
+- Required for downstream analysis (PCA)
+~~~
+
+* **ANS**: Why is it useful to identify highly variable genes instead of analyzing all the genes expressed in a sample? 
+~~~
+Genes with constant expression can't tell you anything about
+- Heterogenaity within the sample (between cell-types, states)
+- Effects of experimental perturbation
+Which are usually the reasons you run scRNA-seq in the first place. 
+~~~
+***
+
+> Principal Component Analysis
+
+5. Principal Component Analysis (PCA) is a linear transformation used to both reduce the dimensionality of the data and to identify the major sources of variation within it. Given the high number of cells and genes (i.e., dimensionality) in scRNA-seq, PCA is often used as both preprocessing step and tool for initial exploratory analysis.
+
+* **ANS**: Briefly, how does PCA help "reduce dimensionality"? 
+~~~
+Identifies the "components" (linear combinations of variables) which explain the 
+largest possible proportion of the variance of the variables (first explains the 
+most, second explains the most not explained by the first, etc..). Each of these 
+"components" ranges along the gamut of some dimension, just like the original 
+variables do. You can pick a number of components which is plottable (unlike
+the very large number of variables/genes you started with) while still explaining
+much of the variance in the data. 
+~~~
+
+* **ANS**: Run principal component analysis on your data with default parameters. Print the top 10 genes that define "up" and "down" for each of the first 5 principal components. 
+
+```{r 5.1: Run PCA}
+# Replace this line with your code
+gw18 <- RunPCA(gw18, features = VariableFeatures(object = gw18), nfeatures.print = 10)
+```
+
+_Principal component selection is critical for dimensionality reduction and clustering. There are several methods used to identify important principal components._
+
+* **ANS**: What are "loadings" in the context of PCA in scRNA-seq?
+~~~
+- Loadings=correlations between original variables (genes) and components.
+- Higher loading = higher correlation (more gene tscripts -> more component value)
+- Negative = anticorrelated
+~~~
+
+* **ANS**: Visualize the expression pattern of the top 30 loadings (15 up and 15 down) for the first 10 Principal Components (PCs) using the Seurat function DimHeatmap(): 
+
+```{r 5.2: PCA Heatmap}
+# Replace this line with your code
+DimHeatmap(gw18, dims = 1:10, nfeatures = 30)
+```
+
+**_Each PC explains some percentage of the total variance in the data. A high percentage of explained variance is a convincing justification for selection of a PC. This value is always highest in $PC_1$ and lowest in $PC_n$, where $n$ is the total number of genes used in PCA._**
+
+* **ANS**:  Calculate the % variance explained by each of the first 50 PCs. Output the % variance explained by the 4th and 10th PCs: 
+
+* Hint: Seurat calculates 50 PCs as a default. The formula for % variance is:
+
+ $$ percent.var = {PCA.stdev^2 \over total.sample.var}*100 $$
+
+* The standard deviation for each PC is stored within the PCA slot of the Seurat object. The formula for total sample variance is the sum of all row variances in the scaled.data slot:
+
+$$ total.sample.var = \sum_{i = 1}^{n} var(scaled.data_i)$$
+
+* You can calculate all row variances using rowVars() from the R "matrixStats" package, for example. You can sum them using base R's sum().
+
+```{r}
+library(matrixStats)
+```
+
+
+```{r 5.3: Calculate variance}
+total_sample_var=sum(rowVars(gw18@assays$RNA@layers$scale.data))
+percent.var=gw18@reductions$pca@stdev**2/total_sample_var*100
+print(percent.var[4])
+print(percent.var[10])
+```
+
+
+
+
+* **ANS**: Visualize the % variance explained by the first 30 PCs using the Seurat function ElbowPlot(): 
+
+```{r 5.4: Elbow plot}
+ElbowPlot(gw18, ndims = 30)
+```
+
+* **ANS**: How many PCs would you choose using these metrics? Briefly explain your reasoning: 
+~~~
+Any reasonable answer that visually identifies an elbow point. 
+~~~
+
+**_The choice of PCs is relatively subjective; with an accompanying (reasonable!) justification, you can select and use any number of PCs for your analysis. For consistency, we will use the first 20 PCs (Seurat default)._**
+
+***
+
+> Clustering
+
+6. Seurat uses a K Nearest Neighbors (KNN) graph to relate similar cells, then group them using a clustering algorithm. 
+
+* **ANS**: Find neighbors using the first 20 PCs and identify clusters using the original Louvain algorithm (default) with a resolution parameter of 0.8. 
+
+```{r 6.1: Clustering}
+gw18 <- FindNeighbors(gw18, dims = 1:20)
+gw18 <- FindClusters(gw18, resolution = 0.8)
+```
+
+* **ANS**: How many clusters were identified in this dataset? 
+
+```{r 6.2: Show cluster number}
+length(levels(Idents(gw18)))
+```
+
+17
+
+***
+
+> 2D Projection
+
+7. There are many non-linear dimensionality reduction algorithms that can be applied in scRNA-seq analyses for 2D or 3D visualization of these highly dimensional data. These plots are often used to concisely summarize the relationships between cells, although distances in these manifolds should never be used as exact measurements. Uniform Manifold Approximation Projection (UMAP) is currently the most commonly used method. A detailed description of UMAP can be found here: https://umap-learn.readthedocs.io/en/latest/
+
+* **ANS**: Run UMAP on your data using the first 20 PCs with default parameters. Plot the results using the DimPlot() function. 
+
+```{r 7: Run and plot UMAP}
+gw18 <- RunUMAP(gw18, dims = 1:20)
+DimPlot(gw18)
+```
+
+* **ANS**: How would you interpret the structure of this UMAP plot? 
+~~~
+Any reasonable interpretation that demonstrates an understanding of dimensionality reduction
+& what distances means in this graph.
+~~~
+
+8. It’s important to determine whether technical (i.e., not biological) variation is compromising the analysis. Using FeaturePlot(), plot the number of features, number of transcripts, and mitochondrial expression onto the UMAP. Arrange these 3 plots into 2 columns. 
+
+* Hint: You can use grid.arrange() from the "gridExtra" package to arrange plots.
+
+```{r}
+library(gridExtra)
+```
+
+
+```{r 8: Plot QC onto UMAP}
+grid.arrange(FeaturePlot(gw18, features = 'nFeature_RNA'),
+             FeaturePlot(gw18, features = 'percent_mt'),
+             FeaturePlot(gw18, features = 'nCount_RNA'), ncol = 2)
+```
+
+* **ANS**: Why might some clusters have slightly different quality metrics compared to others? 
+~~~
+The transcriptomic state is expected to vary with cell quality. For example,
+shown above : percent mt correlates with number of detected genes. Thus we expect
+that bad cells will cluster together. 
+
+A general principal of data analysis is that, without correction, the largest
+effect will often be batch. Since dimensionality reduction & clustering identify 
+components which explain differences in transcriptome, and cell quality explains
+a difference in transcriptome...
+
+(For this reason, I've seen papers which do PCA specifically to *remove* the 
+effect of the largest components, which correspond to things like "sequencing run")
+~~~
+
+_*Save your Seurat object using saveRDS() before proceeding.*_
+
+```{r}
+saveRDS(gw18, file = "~/Downloads/gw18.rds") 
+```
+
+***
+
+## Cluster Analysis
+
+> AUC and Consensus Assignment
+
+9. Clusters can be assigned to cell types based on marker gene expression signatures. Identify excitatory neurons (ExNs) using the gene set provided (Data/PS2/ExN_markers.txt) and the "AUCell" library. 
+
+* **ANS**: Install the "AUCell" package library (available through BioConductor). Load it in the chunk below and rank the gene expression within each cell using the AUCell_buildRankings() function with default parameters. The input should be the raw counts in your Seurat object.
+
+* **Hint: Do not overwrite your Seurat object with AUCell's functions!**
+
+```{r 9.1: AUCell ranking}
+rank <- AUCell_buildRankings(gw18@assays$RNA$counts) #for each cell, the genes are ranked from highest to lowest count
+```
+
+* **ANS**: Read in the marker gene list provided. Calculate the Area Under the recovery Curve (AUC) score for each cell using AUCell_calcAUC().
+
+```{r 9.2: Calculate AUC}
+Exn_genes <- scan(file = '~/Downloads/PS2/ExN_markers.txt', sep = '\t', what = 'character')
+auc_res <- AUCell_calcAUC(Exn_genes, rank) #calculates AUC, which estimates the proportion of genes in the gene-set that are highly expressed in each cell
+auc_matrix <- as.matrix(getAUC(auc_res))
+```
+
+* **ANS**: Briefly, what is an AUC score and why is it useful in cell type classification?
+~~~
+AUC score
+- Generally used to evaluate the behavior of classifiers. Bigger=better classifier.
+- area under the ROC curve: curve on a 2-axis graph where one axis is true positive rate and the other is false positive rate.
+(For some threshold value being varied).
+- Ideally you would have 100% true positive and 0% false positive & so AUC = 1
+- Practically, there is always a trade-off.
+~~~
+
+* **ANS**: Why is it beneficial to use multiple marker genes when assigning cell types, instead of single known markers? Provide 2 reasons:
+~~~
+Some example reasons:
+
+1. RNA-seq is hugely lacunate. If you pick one gene, maybe all its transcripts get
+eaten by an RNAase, and now you can't classify it. If you pick ten genes, the chance
+all 10 get eaten is much lower. (Reducing false negative rates)
+
+2. The genome is hugely repetitive and alignment isn't perfect. Reads from some 
+other random gene may be erroneously aligned to your "one perfect marker gene" in
+a cell that isn't *actually* a member of your cell type of cell-type of interest.
+Multiple markers reduces chances considerably. 
+(Reducing false positive rates)
+
+3. Maybe you think you know for sure that one gene is a fantastic marker of your
+cell-type of interest. But how do you know that? Bulk RNA-seq? Staning? If so, 
+there's a chance there exists subpopulation(s) which don't express that gene. 
+~~~
+
+* **ANS**: Classify each cell using AUCell_exploreThresholds(). Add these classifications to the Seurat object metadata.
+
+* Hint: The output of AUCell_exploreThresholds() contains an "assignment" slot with the barcodes for cells with positive assignments. You can compare this list to _all_ cell barcodes to determine which are "ExN" and which are not. 
+
+```{r 9.3: Classify cells}
+cells_assignment <- AUCell_exploreThresholds(auc_matrix, plotHist=FALSE, assign=TRUE) #explores and finds the AUC threshold that gives us the highest value to reduce false positives
+gw18$Exn_assignment = colnames(gw18) %in% cells_assignment$geneSet$assignment
+```
+
+10. While these results could be used to directly assign individual cells as potential ExN's, this approach does not consider the clustering we performed previously. To combine these two pieces of information, we use "majority voting", or "consensus assignment". Consider clusters with >50% of their cells with positive ExN assignments as "ExN" clusters.
+
+* **ANS**: Calculate the proportion of cells in each Seurat cluster which are potentially "ExN" using prop.table(). Rename the clusters with >50% ExN cells as "ExN":
+
+* Hint: The proportions of "ExN" and "Non-ExN" (columns) in your table should sum to one!
+!!!
+```{r 10.1: Consensus assignment}
+# get the proportion of excitatory  cells in each cluster
+exn_count <- table(gw18$Exn_assignment, gw18$seurat_clusters)
+#converts to proportions
+exn_proportions <- prop.table(exn_count, margin = 2)
+#A three-column tab of T/F "ExN" then cluster ID
+
+# change cluster names
+n <- nlevels(gw18@meta.data[["seurat_clusters"]])
+name_clusters <- NULL
+for (i in 1:n) {#for each index in the table
+    #name the cluster "EXN" if the coresp ExN TRUE row is more than fifty percent
+    #otherwise keep original cluster name (i-1 since loop i is indexing lists
+    # and R starts at 1 instead of 0, but seurat clusters start at 0)
+    # * 2 skips FALSE values
+    name_clusters[[i]] <- if (exn_proportions[[2*i]] > .5) {"ExN"} else {i-1}
+}
+names(name_clusters) <- levels(gw18)
+gw18 <- RenameIdents(object = gw18, name_clusters)
+
+# confirm change in cluster names
+levels(gw18)
+
+```
+
+(1,2,3, 5, 13)
+
+```{r}
+any(colSums(exn_proportions)!=1) #double checking that none of my column sums are NOT equal to 1
+```
+
+
+* **ANS**: Using this approach, how many cells were classified as ExNs?
+
+* Hint: Only cells in ExN clusters are ExNs; cells with positive AUCell assignments that are not in these majority-positive clusters should not be counted!
+
+```{r 10.2: Count ExN cells}
+sum(Idents(gw18) == "ExN")
+```
+
+***
+
+> Differential Gene Expression
+
+11. Now that you have identified ExNs in these data, you will analyze the transcriptional markers of cells within this broad cell class. Seurat provides functions that perform differential gene expression to identify genes that define clusters.
+
+* **ANS**: Use the “FindMarkers()” function to find the genetic markers of *all ExN cells*. You should only retain markers with *positive* fold changes, a minimum logFC of 0.2, a minimum expression ratio (min.pct) of 0.3.
+
+* Hint: Differential gene expression is performed to contrast cells in one identity (e.g., ExN cluster cells) vs. another (eg., all other cells by default). You can set the identity (qualitative column of metadata) for your cells using the Idents() function.
+
+```{r 11.1: Find Markers}
+markers <- FindMarkers(gw18, "ExN", only.pos = TRUE, logfc.threshold = 0.2, min.pct = 0.3)
+#only return positive markers
+#limit testing to genes which show on average at least 0.2 fold difference between the two groups
+#limit testing to genes that are detected in a min fraction of cells in either of the two pops
+markers
+```
+
+* **ANS**: Using Ident(), make "seurat_clusters" the default identity. Then, using the DoHeatmap() function, plot an expression heatmap for the top 20 genes (ordered by avg_log2FC) in your marker list.
+
+```{r}
+library(tidyverse)
+```
+
+```{r 11.2: Marker Heatmap}
+snipped=markers %>%
+  arrange(desc(markers$avg_log2FC))  %>%
+  slice(1:20)
+
+Idents(gw18) <- gw18$seurat_clusters
+DoHeatmap(object = gw18, features = rownames(snipped))
+```
+
+* **ANS**: Briefly interpret this heatmap; is it consistent with your assignment?
+
+~~~
+Yes, (1,2,3, 5, 13) were ExN assigned, and among those with enough cells to 
+visualize there is clearly upregulation of ExN marker genes. 
+(Though to be honest this is a bit tautological. Exn marker genes->cluster selection -> exn marker gene expression)
+~~~
+
+12. Gene Ontology is a curated selection of terms relating gene sets to biological processes, cellular, and molecular function. It is often used as a hypothesis building tool given a large list of differentially expressed genes. 
+
+* **ANS**: Load the enrichR package (https://www.rdocumentation.org/packages/enrichR/versions/3.1). Using the enrichr() function and the "Reactome_2022" pathway ontology database, find terms associated with all the marker genes you discovered in question 11. Display the top 10 terms.
+
+```{r 12: Gene Ontology}
+terms <- enrichr(rownames(markers), databases = 'Reactome_2022')
+```
+```{r}
+terms$Reactome_2022$Term[1:10]
+save.image("~/Downloads/PS2/example.RData")
+```
+
+
+* **ANS**: Considering the data from which you extracted these gene names, do these ontology terms make biological sense? Explain your reasoning in 1-3 sentences: 
+
+~~~
+Terms are predominantly nervous-system specific (which makes sense) or supporting
+pathways for neurons (vesicle transport, tubulin...) 
+~~~
+
+***
+
+> Knit this markdown into an html notebook. Save it as *\<Your_NetID\>\_PS2\_answers.html* and submit it alongside this filled document.
+
+***
