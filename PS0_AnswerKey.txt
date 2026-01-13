@@ -1,0 +1,197 @@
+#### QUESTION 1: Log onto McCleary using SSH
+
+ANS: Write the command and a description of what the command does:
+
+command: ssh gene760_[netID]@mccleary.ycrc.yale.edu
+
+description: ssh (secure shell) allows us to login to the server/McCleary from the computer's local terminal to the destination (gene_760 account on McCleary). Following this command we are prompted to put in the password and authenticate 
+
+
+
+#### QUESTION 2: Connect to an interactive node so that you are not running commands on the login node.
+
+ANS: Write the command and a description of what the command does
+
+command: salloc or srun [+ options] 
+
+description: salloc command allocates an interactive node/session, moving us out of the login node. The option -p specifies the type of partition, -t specifies the time, -c specifies the number of CPUs requested per tasks, and -mem is the amount of memory per cpu. Different options can be specified based on required tasks to be run in the interactive node (e.g. how computational intensive the task is) 
+
+
+
+
+#### QUESTION 3: Copy the file located at /gpfs/gibbs/project/gene760/shared/folders/Reference/bashrc_gene760_2024.txt and use that copy to replace your .bashrc file in your home directory. Source your bash after you`ve done this.
+
+ANS: Write out the commands you used to replace the file 
+cp -f /gpfs/gibbs/project/gene760/shared/folders/Reference/bashrc_gene760_2024.txt /home/gene760_[netID]/.bashrc
+
+ANS: Explain what the .bashrc file is and what it does 
+A .bashrc file (i.e. bash read command) is a script file that automatically runs when starting the bash shell to prepare the environment. It allows you to customize the shell environment (i.e adding aliases, defining variables, etc) without needing to manually call the relevant scripts/functions each time you run the shell.
+
+ANS: To confirm this has worked, run echo $PATH, and paste the output here. Briefly state what what you think this command is doing.
+
+Output of echo $PATH:
+/home/gene760_[netID]/.local/bin:/home/gene760_[netID]/bin:/vast/palmer/apps/bin:/opt/slurm/current/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/dell/srvadmin/bin
+
+What command is doing: The echo command displays the strings in the variable $PATH. $PATH is a series of directories where the operating system looks in whenever a command is called in the shell (i.e. when running any executables). 
+
+ANS: Try to briefly explain the roles of the commands in the new “.bashrc” file. 
+The alias commands in the new .bashrc file provide abbreviations for different combinations of the ls command and its associated options, as well as the salloc and queue commands, allowing the user to type less. For example, instead of typing "salloc -c 4 -t 6:00:00 --mem=32G" the user can only type "sruni" and get the same output. These are useful for saving time for commands that are commonly used. The module load dSQ will autoload the dsQ software when opening the shell environment. 
+ 
+
+#### QUESTION 4: McCleary uses the module system for managing software packages. Use the module system to display a list of available modules. Display a list of Bowtie versions available.
+
+ANS: Write the commands and a description of what each command does 
+First command: module avail 
+Description: load list of all available modules 
+
+Second command: module spider Bowtie2
+Description: load versions of Bowtie2 available
+
+
+ANS: Run the command module spider bowtie. Briefly describe the output and how module spider might be useful.
+The output shows a description of Bowtie, the versions available and how to find more details for each package. The spider is useful if you have a specific module in mind you are interested in using/running rather than looking through all the many modules available (i.e from output of module avail)
+
+
+ANS: Write the appended $PATH after loading Bowtie2 (hint: compare the output of “echo $PATH” prior to and after loading Bowtie2).
+
+Current output of $PATH after running Bowtie2: 
+/vast/palmer/apps/avx2/software/Bowtie2/2.3.4.3-GCC-10.2.0/bin:/vast/palmer/apps/avx2/software/binutils/2.35-GCCcore-10.2.0/bin:/vast/palmer/apps/avx2/software/GCCcore/10.2.0/bin:/vast/palmer/apps/avx2/software/dSQ/1.05:/home/gene760_rua2/.local/bin:/home/gene760_rua2/bin:/vast/palmer/apps/bin:/opt/slurm/current/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/opt/dell/srvadmin/bin
+
+Additional directories added to $PATH (compared to $PATH before running Bowtie2): 
+/vast/palmer/apps/avx2/software/Bowtie2/2.3.4.3-GCC-10.2.0/bin:/vast/palmer/apps/avx2/software/binutils/2.35-GCCcore-10.2.0/bin:/vast/palmer/apps/avx2/software/GCCcore/10.2.0/bin:/vast/palmer/apps/avx2/software/dSQ/1.05:
+
+If these are added to .bashrc, then the Bowtie2 command can be immediately run when accessing the shell. 
+
+
+
+#### QUESTION 5: In your home directory make a directory called Problem_set_0 and change directory into this directory. Work out the absolute path of this directory.
+
+ANS: Write the commands and a description of what each command does 
+command: cd /home/gene760_rua2
+description: change directory to home
+
+command: mkdir Problem_set_0
+description: make new directory called Problem_set_0 in current home directory
+
+command cd Problem_set_0/
+description: change directory into this new directory 
+
+command: pwd
+description: output absolute path of this directory 
+
+
+ANS: Write the absolute path of this directory (should begin with a “/”)
+/home/gene760_[netID]/Problem_set_0
+
+
+
+##### QUESTION 6: Copy the following file to your directory and then submit a job using slurm to unzip it:
+ANS: Write the commands and a description of what each command does
+command: cp /gpfs/gibbs/project/gene760/shared/folders/Data/PS0/Test_FinalReport_1Mv3_hg18.txt.gz .
+description: copies (cp) the given file (indicated by its path) into the current directory (.) 
+
+command: nano unzip.sh
+
+description: make a script file called unzip.sh to submit as batch job to slurm. After specifying the job features in the first few lines (i.e. #!/bin/bash
+#SBATCH.... etc). The command to unzip the file was added in unzip.sh: 
+
+command: gunzip Test_FinalReport_1Mv3_hg18.txt.gz
+description: unzip the file with the given name 
+
+Command: sbatch unzip.sh 
+description: submits the batch script to Slurm, running commands within unzip.sh
+
+
+ANS: Explain what slurm is and why it is useful
+Slurm is a way to submit, manage and run commands/scripts through jobs in batches on the cluster.  It is useful because several scripts can be run in parallel and without the need to monitor your scripts/commands as they run, as is done during an interactive session. It is especially useful for larger, multi-step and computationally expensive pipelines and scripts.
+
+ANS: By looking at the first few lines of this file, what type of data do you think is in this file?
+
+command: head Test_FinalReport_1Mv3_hg18.txt 
+
+output: 
+
+BSGT Version	3.2.32
+Processing Date	9/14/2009 10:34 PM
+Content		Human1M-Duov3_B.bpm
+Num SNPs	1199187
+Total SNPs	1199187
+Num Samples	287
+Total Samples	287
+File 	55 of 287
+
+The type of data in this file seems to be genetic variation data (i.e. in the form of over 1 million single nucleotide polymorphisms/SNPs) from over 280 samples. The .bpm file content seems to suggest that the data is from a microarray genotyping experiment. 
+
+
+##### QUESTION 7: Count the number of lines in the file; look at the first and last 50 lines of the unzipped file
+ANS: Write the commands and a description of what each command does 
+command:  wc -l Test_FinalReport_1Mv3_hg18.txt 
+output: 1199198 Test_FinalReport_1Mv3_hg18.txt
+description: the wc (word count) with the -l option to count the number of lines in the given .txt file
+
+command: head -n 50 Test_FinalReport_1Mv3_hg18.txt
+description: look at first 50 lines in the given .txt file
+
+command: tail -n 50 Test_FinalReport_1Mv3_hg18.txt
+description: look at last 50 lines in the given .txt file
+
+ANS: State the number of lines, the name of the SNP on the 50th line from the top, and the name of the SNP on the 50th line from the bottom
+Number of lines: 1199198
+Name of SNP on the 50th line from the top: 500710
+Name of SNP on the 50th line from the bottom: cnvi0048784
+
+
+##### QUESTION 8: Make a file called chrXY_Test_FinalReport_1Mv3_hg18.txt; extract all the lines (SNPs) that match either chrX or chrY from Test_FinalReport_1Mv3_hg18.txt and put them into the file you made (hint X and Y only appear in column 3)
+
+ANS: Write the commands and a description of what each command does
+command: touch chrXY_Test_FinalReport_1Mv3_hg18.txt
+description: makes a file with the given name in the current directory 
+
+command: awk -F'\t' '$3 == "X" || $3 == "Y" || $3 == "XY"' Test_FinalReport_1Mv3_hg18.txt > chrXY_Test_FinalReport_1Mv3_hg18.txt
+description: goes through the tab delimited file (\t) and uses the awk command to find rows where the third chromosome column ($3) is X or (||) Y or (||) XY. Rows/lines that match this are then written into the new output file (chrXY_Test_FinalReport_1Mv3_hg18.txt). > redirects the output of the awk command to the file rather than being printed on the screen,
+
+
+ANS: State the number of lines in the new file and the number of chrX, chrY and chrXY SNPs
+command:  wc -l chrXY_Test_FinalReport_1Mv3_hg18.txt 
+output: 51207 chrXY_Test_FinalReport_1Mv3_hg18.txt
+Total number of lines in the new file is 51207
+
+command: awk -F'\t' '$3 == "X"' chrXY_Test_FinalReport_1Mv3_hg18.txt | wc -l
+output: 45591 SNPs are in chromosome X
+
+command: awk -F'\t' '$3 == "Y"' chrXY_Test_FinalReport_1Mv3_hg18.txt | wc -l
+output: 4637 SNPs are in chromosome Y
+
+commmand: awk -F'\t' '$3 == "XY"' chrXY_Test_FinalReport_1Mv3_hg18.txt | wc -l
+output: 979 SNPs are XY
+
+
+ANS: What is your biological interpretation of these numbers? (hint your interpretation is based on what sort of data you think is in this file (see question 9c))
+My biological interpretation is that the X chromosome carries more variation than the Y chromosome. This makes sense given that the X chromosome is larger and contains more genes
+
+ANS: Do you think this sample is male or female?
+Since the sample contains a Y chromosome, it is male.
+
+
+###### QUESTION 9: Using the SNP A/T/G/C allele information, count the number of SNPs that are heterozygous on the X chromosome.
+
+ANS: State the number of heterozygous SNPs on chrX, the percentage of chrX that is heterozygous
+
+Commands: 
+
+#finding homozygous 
+awk -F'\t' '$3 == "X"' chrXY_Test_FinalReport_1Mv3_hg18.txt | awk -F'\t' '$5==$6' | wc -l
+output: 45562
+
+# finding heterozygous: 
+awk -F'\t' '$3 == "X"' chrXY_Test_FinalReport_1Mv3_hg18.txt | awk -F'\t' '$5!=$6' | wc -l
+output: 29
+Percentage of chromosome X SNPs that are heterozygous: 29/(45562+29) * 100 = 0.0636%
+
+
+ANS: Do you think this sample is male or female? Why? 
+This sample is male because (SNPs on the Y chromosome + near 0% heterozygosity on X chromosome(?))
+
+
+
+
